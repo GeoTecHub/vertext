@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Vertext Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    #map { position: fixed; inset: 0; }
+
+    .leaflet-top, .leaflet-bottom,
+    .leaflet-control-container { z-index: 10000 !important; }
+
+    /* Pulsing live marker */
+    .pulse {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #1976d2;
+      box-shadow: 0 0 0 rgba(25,118,210,0.7);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(25,118,210,0.7); }
+      70%  { box-shadow: 0 0 0 12px rgba(25,118,210,0); }
+      100% { box-shadow: 0 0 0 0 rgba(25,118,210,0); }
+    }
+
+    /* HUD box inside the map container (always on top) */
+    .hud-box {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 100000;
+      background: rgba(255,255,255,.95);
+      padding: 12px 14px;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,.25);
+      font: 14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      color: #111;
+      white-space: pre-line;
+      pointer-events: none;
+    }
+    .kv { margin: 4px 0; }
+    .k { font-weight: 600; }
+
+    /* Top-left control bar */
+    .map-controls {
+      background: rgba(255,255,255,.95);
+      padding: 8px 10px;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,.25);
+      font: 13px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      color: #111;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .map-controls input[type="color"] {
+      border: none; background: transparent; width: 28px; height: 28px; padding: 0;
+    }
+    .btn {
+      padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; background: #f7f7f7; cursor: pointer;
+    }
+    .btn:active { transform: translateY(1px); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    const map = L.map('map', { zoomControl: true }).setView([7.8731, 80.7718], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', subdomains: ['a','b','c']
+    }).addTo(map);
+
+    // ----- HUD appended inside the map container -----
+    (function createHud() {
+      const hud = document.createElement('div');
+      hud.className = 'hud-box';
+      hud.innerHTML = `
+        <div class="kv"><span class="k">Projection :</span> WGS84</div>
+        <div class="kv"><span class="k">Latitude :</span> <span id="lat">--------</span></div>
+        <div class="kv"><span class="k">Longitude :</span> <span id="lon">--------</span></div>
+        <div class="kv"><span class="k">Height :</span> <span id="hgt">--------</span></div>
+        <div class="kv"><span class="k">Fix Type :</span> <span id="fix">--------</span></div>
+        <div class="kv"><span class="k">Bluetooth :</span> <span id="bt">--------</span></div>
+      `;
+      map.getContainer().appendChild(hud);
+    })();
+
+    // ----- Control bar (Follow, Color, Clear Track) -----
+    const Ctrl = L.Control.extend({
+      onAdd: function() {
+        const div = L.DomUtil.create('div', 'map-controls');
+        div.innerHTML = `
+          <label><input id="followChk" type="checkbox" checked /> Follow</label>
+          <label title="Live marker color">●
+            <input id="colorPicker" type="color" value="#1976d2" />
+          </label>
+          <button id="clearBtn" class="btn" type="button">Clear Track</button>
+        `;
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        setTimeout(() => {
+          document.getElementById('followChk').addEventListener('change', (e) => {
+            followMe = e.target.checked;
+          });
+          document.getElementById('colorPicker').addEventListener('input', (e) => {
+            setMarkerColor(e.target.value);
+          });
+          document.getElementById('clearBtn').addEventListener('click', () => clearTrack());
+        }, 0);
+        return div;
+      }
+    });
+    map.addControl(new Ctrl({ position: 'topleft' }));
+
+    // ----- Live marker + track -----
+    let liveMarker = null;
+    let followMe = true;
+    let markerColor = '#1976d2';
+    let track = [];
+    let trackLine = L.polyline([], { color: '#1976d2', weight: 3, opacity: 0.9 }).addTo(map);
+
+    function setMarkerColor(hex) {
+      markerColor = hex || '#1976d2';
+      trackLine.setStyle({ color: markerColor });
+      if (liveMarker) {
+        const el = document.createElement('div');
+        el.className = 'pulse';
+        el.style.background = markerColor;
+        el.style.boxShadow = `0 0 0 rgba(${hexToRgb(markerColor)}, 0.7)`;
+        liveMarker.setIcon(L.divIcon({ className: '', html: el, iconSize: [18,18] }));
+      }
+    }
+    function hexToRgb(h) {
+      const c = h.replace('#','');
+      const bigint = parseInt(c, 16);
+      const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
+      return `${r},${g},${b}`;
+    }
+    function clearTrack() {
+      track = [];
+      trackLine.setLatLngs(track);
+    }
+
+    window.setFollowMe = function(on) { followMe = !!on; };
+    window.setMarkerColor = function(hex) { setMarkerColor(hex); };
+    window.clearTrack = function() { clearTrack(); };
+    window.resetTrack = function() { clearTrack(); };
+
+    // Called by Flutter periodically
+    window.updateLive = function (lat, lon, height, fixType, isReceiving) {
+      const hasFix = (typeof lat === 'number') && (typeof lon === 'number');
+
+      // Update HUD
+      document.getElementById('lat').textContent = hasFix ? lat.toFixed(7) : '--------';
+      document.getElementById('lon').textContent = hasFix ? lon.toFixed(7) : '--------';
+      document.getElementById('hgt').textContent = (typeof height === 'number') ? height.toFixed(2) : '--------';
+      document.getElementById('fix').textContent = fixType || '--------';
+      document.getElementById('bt').textContent = isReceiving ? 'Receiving' : '--------';
+
+      if (hasFix) {
+        if (!liveMarker) {
+          const el = document.createElement('div');
+          el.className = 'pulse';
+          el.style.background = markerColor;
+          el.style.boxShadow = `0 0 0 rgba(${hexToRgb(markerColor)}, 0.7)`;
+          liveMarker = L.marker([lat, lon], {
+            icon: L.divIcon({ className: '', html: el, iconSize: [18,18] })
+          }).addTo(map);
+        } else {
+          liveMarker.setLatLng([lat, lon]);
+        }
+
+        // Update track if moved
+        const last = track.length ? track[track.length - 1] : null;
+        if (!last || last[0] !== lat || last[1] !== lon) {
+          track.push([lat, lon]);
+          trackLine.setLatLngs(track);
+        }
+
+        if (followMe) map.setView([lat, lon], Math.max(map.getZoom(), 17));
+      }
+    };
+
+    // Optional center helper
+    window.centerOn = function(lat, lon, zoom) {
+      map.setView([lat, lon], zoom || map.getZoom());
+    };
+  </script>
+</body>
+</html>
