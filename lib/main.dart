@@ -13,6 +13,7 @@ import 'package:vertext_flutter/features/spatial/spatial_viewmodel.dart';
 import 'package:vertext_flutter/features/ntrip/ntrip_viewmodel.dart';
 import 'package:vertext_flutter/features/bluetooth/bt_viewmodel.dart';
 import 'package:vertext_flutter/features/gnss/gnss_live_viewmodel.dart';
+import 'package:vertext_flutter/features/plans/plan_management_viewmodel.dart';
 
 import 'package:vertext_flutter/app.dart';
 
@@ -32,11 +33,11 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ProjectsViewModel()),
         ChangeNotifierProvider(create: (_) => SpatialViewModel()),
         ChangeNotifierProvider(create: (_) => NtripViewModel()),
+        ChangeNotifierProvider(create: (_) => PlanManagementViewModel()),
 
         // Live GNSS + Bluetooth at the root (single instances app-wide)
         ChangeNotifierProvider(create: (_) => GnssLiveViewModel(), lazy: false),
         ChangeNotifierProvider(create: (_) => BtViewModel(), lazy: false),
-        
       ],
       child: VerTextApp(startLoggedIn: hasSession),
     ),

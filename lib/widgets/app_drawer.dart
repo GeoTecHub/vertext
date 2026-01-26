@@ -3,6 +3,7 @@ import '../features/layers/layers_view.dart';
 import '../features/projects/projects_view.dart';
 import '../features/ntrip/ntrip_caster_view.dart';
 import '../features/bluetooth/bluetooth_connect_view.dart';
+import '../features/plans/plan_management_view.dart';
 import '../core/storage/session_manager.dart';
 import '../features/auth/login_view.dart';
 
@@ -30,7 +31,9 @@ class AppDrawer extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('MENU', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text('MENU',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   Text('Logged in', style: TextStyle(color: Colors.black54)),
                 ],
@@ -43,7 +46,8 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Layers'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LayersView()));
+                Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LayersView()));
               },
             ),
             ListTile(
@@ -51,7 +55,18 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Projects'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProjectsView()));
+                Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ProjectsView()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.map_outlined),
+              title: const Text('Plan Management'),
+              subtitle: const Text('Upload survey data'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const PlanManagementView()));
               },
             ),
 
@@ -64,7 +79,8 @@ class AppDrawer extends StatelessWidget {
               subtitle: const Text('Fetch mountpoints & connect'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NtripCasterView()));
+                Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const NtripCasterView()));
               },
             ),
             ListTile(
@@ -73,7 +89,8 @@ class AppDrawer extends StatelessWidget {
               subtitle: const Text('Pair & stream NMEA/JSON'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BluetoothConnectView()));
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const BluetoothConnectView()));
               },
             ),
 
