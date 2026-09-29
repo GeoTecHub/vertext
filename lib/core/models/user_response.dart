@@ -3,48 +3,27 @@ class UserResponse {
   final User user;
   UserResponse({required this.token, required this.user});
 
-  factory UserResponse.fromJson(Map<String, dynamic> j) =>
-      UserResponse(token: j['token'], user: User.fromJson(j['user']));
+  factory UserResponse.fromJson(Map<String, dynamic> j) => UserResponse(
+        token: j['token'] ?? j['auth_token'] ?? '',
+        user: User.fromJson(
+            j), // Parse from root since user fields are root level now
+      );
 }
 
 class User {
-  final int id;
-  final String username;
-  final String email;
-  final String userType;
-  final bool isActive;
-  final String firstName;
-  final String lastName;
-  final String displayName;
-  final String licenseNumber;
-  final String? mobile;
-  final String? address;
+  final bool userIsActive;
+  final bool organizationIsActive;
+  final bool subscriptionIsExpired;
 
   User({
-    required this.id,
-    required this.username,
-    required this.email,
-    required this.userType,
-    required this.isActive,
-    required this.firstName,
-    required this.lastName,
-    required this.displayName,
-    required this.licenseNumber,
-    this.mobile,
-    this.address,
+    required this.userIsActive,
+    required this.organizationIsActive,
+    required this.subscriptionIsExpired,
   });
 
   factory User.fromJson(Map<String, dynamic> j) => User(
-    id: j['id'],
-    username: j['username'],
-    email: j['email'],
-    userType: j['user_type'],
-    isActive: j['is_active'],
-    firstName: j['first_name'],
-    lastName: j['last_name'],
-    displayName: j['display_name'],
-    licenseNumber: j['license_number'],
-    mobile: j['mobile'],
-    address: j['address'],
-  );
+        userIsActive: j['user_is_active'] ?? false,
+        organizationIsActive: j['organization_is_active'] ?? false,
+        subscriptionIsExpired: j['subscription_is_expired'] ?? false,
+      );
 }

@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import 'package:vertext_flutter/features/spatial/spatial_viewmodel.dart';
 import 'package:vertext_flutter/features/bluetooth/bt_viewmodel.dart';
+import 'package:vertext_flutter/features/projects/points_viewmodel.dart';
+import 'package:vertext_flutter/core/models/point.dart';
 
 class SpatialMapView extends StatefulWidget {
   final int projectId;
@@ -18,7 +20,7 @@ class _SpatialMapViewState extends State<SpatialMapView> {
   final mapController = MapController();
   bool _followMe = true;
   bool _centeredOnce = false;
-  double _zoom = 17;
+  final double _zoom = 17;
 
   LatLng? _lastPlotted;
 
@@ -91,22 +93,13 @@ class _SpatialMapViewState extends State<SpatialMapView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Spatial Map'),
+        title: const Text('Map Data Viewer'),
         actions: [
-          IconButton(
-            tooltip: 'Center on live',
-            icon: const Icon(Icons.my_location),
-            onPressed: live == null
-                ? null
-                : () {
-                    _zoom = 18;
-                    mapController.move(live, _zoom);
-                    setState(() => _followMe = true);
-                  },
-          ),
           Row(children: [
             const Text('Follow'),
-            Switch(value: _followMe, onChanged: (v) => setState(() => _followMe = v)),
+            Switch(
+                value: _followMe,
+                onChanged: (v) => setState(() => _followMe = v)),
             const SizedBox(width: 8),
           ]),
         ],
@@ -121,7 +114,8 @@ class _SpatialMapViewState extends State<SpatialMapView> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate:
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                 subdomains: const ['a', 'b', 'c'],
               ),
               MarkerLayer(markers: markers),
@@ -132,11 +126,13 @@ class _SpatialMapViewState extends State<SpatialMapView> {
 
           // Bottom telemetry card (uses .withValues instead of deprecated .withOpacity)
           Positioned(
-            left: 8, right: 8, bottom: 8,
+            left: 8,
+            right: 8,
+            bottom: 8,
             child: Opacity(
               opacity: 0.97,
               child: Card(
-                color: Colors.white.withValues(alpha: 0.95), // ✅ updated
+                color: Colors.white.withValues(alpha: 0.95),
                 child: Padding(
                   padding: const EdgeInsets.all(10),
                   child: DefaultTextStyle(
@@ -153,17 +149,20 @@ class _SpatialMapViewState extends State<SpatialMapView> {
                             Row(mainAxisSize: MainAxisSize.min, children: [
                               const Text('Receiving: '),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: receiving ? Colors.green : Colors.red,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(receiving ? 'Yes' : 'No',
-                                    style: const TextStyle(color: Colors.white)),
+                                    style:
+                                        const TextStyle(color: Colors.white)),
                               ),
                             ]),
                             Text('Lines: ${bt.lineCount}'),
-                            Text('Last RX: ${bt.lastRxAt?.toIso8601String() ?? "—"}'),
+                            Text(
+                                'Last RX: ${bt.lastRxAt?.toIso8601String() ?? "—"}'),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -174,10 +173,13 @@ class _SpatialMapViewState extends State<SpatialMapView> {
                           children: [
                             Text(
                               'Lat/Lon: ${live != null ? "${live.latitude.toStringAsFixed(7)}, ${live.longitude.toStringAsFixed(7)}" : "—"}',
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
                             ),
-                            Text('Height: ${bt.currentAlt?.toStringAsFixed(2) ?? "—"}'),
-                            Text('HDOP: ${bt.currentHdop?.toStringAsFixed(2) ?? "—"}'),
+                            Text(
+                                'Height: ${bt.currentAlt?.toStringAsFixed(2) ?? "—"}'),
+                            Text(
+                                'HDOP: ${bt.currentHdop?.toStringAsFixed(2) ?? "—"}'),
                             Text('Solution: ${bt.currentSolution ?? "—"}'),
                           ],
                         ),
@@ -193,13 +195,45 @@ class _SpatialMapViewState extends State<SpatialMapView> {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final center = mapController.camera.center;
-          await context.read<SpatialViewModel>().addPoint(
-                projectId: widget.projectId,
-                layerId: 1, // pick layer in UI later
-                lon: center.longitude,
-                lat: center.latitude,
-                attrs: {'note': 'added from map'},
-              );
+          // Use BT location if available and following, otherwise center
+          // Actually user likely wants to capture CURRENT BT POS if available, else Map Center.
+          // Existing logic was using mapController center.
+          // Let's stick to map center but if followed, it is the BT pos.
+
+          final pVM = context.read<PointsViewModel>();
+          final bt = context.read<BtViewModel>();
+
+          final nextName = pVM.getNextPointNumber();
+
+          final point = PointModel(
+            id: DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID
+            projectId: widget.projectId.toString(),
+            name: nextName,
+            latitude: center.latitude,
+            longitude: center.longitude,
+            altitude: bt.currentAlt,
+            timestamp: DateTime.now(),
+            solutionType: bt.currentSolution,
+            code: '', // Empty code initially
+            hdop: bt.currentHdop,
+            pdop: bt.currentPdop,
+            vdop: bt.currentVdop,
+            hrms: bt.currentHrms,
+            vrms: bt.currentVrms,
+            speed: bt.currentSpeed,
+            heading: bt.currentHeading,
+            baseId: bt.currentBaseId,
+            diffAge: bt.currentDiffAge,
+            instrumentHeight: bt.correctedHI,
+          );
+
+          await pVM.addPoint(point);
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Point No: $nextName saved locally')),
+            );
+          }
         },
         child: const Icon(Icons.add_location),
       ),

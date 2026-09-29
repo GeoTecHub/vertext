@@ -1,5 +1,6 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <title>Vertext Map</title>
@@ -7,188 +8,372 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    html, body { height: 100%; margin: 0; padding: 0; }
-    #map { position: fixed; inset: 0; }
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
 
-    .leaflet-top, .leaflet-bottom,
-    .leaflet-control-container { z-index: 10000 !important; }
+    #map {
+      position: fixed;
+      inset: 0;
+    }
+
+    .leaflet-top,
+    .leaflet-bottom,
+    .leaflet-control-container {
+      z-index: 10000 !important;
+    }
 
     /* Pulsing live marker */
     .pulse {
-      width: 18px; height: 18px; border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
       background: #1976d2;
-      box-shadow: 0 0 0 rgba(25,118,210,0.7);
+      box-shadow: 0 0 0 rgba(25, 118, 210, 0.7);
       animation: pulse 2s infinite;
     }
+
     @keyframes pulse {
-      0%   { box-shadow: 0 0 0 0 rgba(25,118,210,0.7); }
-      70%  { box-shadow: 0 0 0 12px rgba(25,118,210,0); }
-      100% { box-shadow: 0 0 0 0 rgba(25,118,210,0); }
+      0% {
+        box-shadow: 0 0 0 0 rgba(25, 118, 210, 0.7);
+      }
+
+      70% {
+        box-shadow: 0 0 0 12px rgba(25, 118, 210, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(25, 118, 210, 0);
+      }
     }
 
-    /* HUD box inside the map container (always on top) */
-    .hud-box {
-      position: absolute;
-      left: 12px;
-      bottom: 12px;
-      z-index: 100000;
-      background: rgba(255,255,255,.95);
-      padding: 12px 14px;
-      border-radius: 10px;
-      box-shadow: 0 6px 12px rgba(0,0,0,.25);
-      font: 14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
-      color: #111;
-      white-space: pre-line;
-      pointer-events: none;
-    }
-    .kv { margin: 4px 0; }
-    .k { font-weight: 600; }
+
 
     /* Top-left control bar */
     .map-controls {
-      background: rgba(255,255,255,.95);
+      background: rgba(255, 255, 255, .95);
       padding: 8px 10px;
       border-radius: 10px;
-      box-shadow: 0 6px 12px rgba(0,0,0,.25);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, .25);
       font: 13px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
       color: #111;
       display: inline-flex;
       align-items: center;
       gap: 10px;
     }
+
     .map-controls input[type="color"] {
-      border: none; background: transparent; width: 28px; height: 28px; padding: 0;
+      border: none;
+      background: transparent;
+      width: 28px;
+      height: 28px;
+      padding: 0;
     }
+
     .btn {
-      padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; background: #f7f7f7; cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      background: #f7f7f7;
+      cursor: pointer;
     }
-    .btn:active { transform: translateY(1px); }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
 
   <script>
-    const map = L.map('map', { zoomControl: true }).setView([7.8731, 80.7718], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', subdomains: ['a','b','c']
+    // Initialize map with high maxZoom
+    const map = L.map('map', {
+      zoomControl: true,
+      maxZoom: 24,
+    }).setView([7.8731, 80.7718], 7);
+
+    // Tile Layers
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 24,
+      maxNativeZoom: 19,
+      attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // ----- HUD appended inside the map container -----
-    (function createHud() {
-      const hud = document.createElement('div');
-      hud.className = 'hud-box';
-      hud.innerHTML = `
-        <div class="kv"><span class="k">Projection :</span> WGS84</div>
-        <div class="kv"><span class="k">Latitude :</span> <span id="lat">--------</span></div>
-        <div class="kv"><span class="k">Longitude :</span> <span id="lon">--------</span></div>
-        <div class="kv"><span class="k">Height :</span> <span id="hgt">--------</span></div>
-        <div class="kv"><span class="k">Fix Type :</span> <span id="fix">--------</span></div>
-        <div class="kv"><span class="k">Bluetooth :</span> <span id="bt">--------</span></div>
-      `;
-      map.getContainer().appendChild(hud);
-    })();
-
-    // ----- Control bar (Follow, Color, Clear Track) -----
-    const Ctrl = L.Control.extend({
-      onAdd: function() {
-        const div = L.DomUtil.create('div', 'map-controls');
-        div.innerHTML = `
-          <label><input id="followChk" type="checkbox" checked /> Follow</label>
-          <label title="Live marker color">●
-            <input id="colorPicker" type="color" value="#1976d2" />
-          </label>
-          <button id="clearBtn" class="btn" type="button">Clear Track</button>
-        `;
-        L.DomEvent.disableClickPropagation(div);
-        L.DomEvent.disableScrollPropagation(div);
-        setTimeout(() => {
-          document.getElementById('followChk').addEventListener('change', (e) => {
-            followMe = e.target.checked;
-          });
-          document.getElementById('colorPicker').addEventListener('input', (e) => {
-            setMarkerColor(e.target.value);
-          });
-          document.getElementById('clearBtn').addEventListener('click', () => clearTrack());
-        }, 0);
-        return div;
-      }
+    // Blank/Plane layer (just a grid or empty)
+    const planeLayer = L.gridLayer({
+      attribution: 'Plane View',
+      maxZoom: 24,
     });
-    map.addControl(new Ctrl({ position: 'topleft' }));
+    // Simple grid visualization can be added via CSS or custom canvas, 
+    // but for "Plane View" usually implies no background tiles or a white background.
+    // L.gridLayer creates a transparent grid by default. We can set container bg-color in CSS if needed.
 
-    // ----- Live marker + track -----
+    // Scale Control (metric only, clear visual)
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+    // Global state
     let liveMarker = null;
-    let followMe = true;
     let markerColor = '#1976d2';
-    let track = [];
-    let trackLine = L.polyline([], { color: '#1976d2', weight: 3, opacity: 0.9 }).addTo(map);
+    let followMe = true;
 
-    function setMarkerColor(hex) {
-      markerColor = hex || '#1976d2';
-      trackLine.setStyle({ color: markerColor });
-      if (liveMarker) {
-        const el = document.createElement('div');
-        el.className = 'pulse';
-        el.style.background = markerColor;
-        el.style.boxShadow = `0 0 0 rgba(${hexToRgb(markerColor)}, 0.7)`;
-        liveMarker.setIcon(L.divIcon({ className: '', html: el, iconSize: [18,18] }));
-      }
+    // Helper ... (unchanged)
+    function hexToRgb(hex) {
+      var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+      hex = hex.replace(shorthandRegex, function (m, r, g, b) {
+        return r + r + g + g + b + b;
+      });
+      var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
     }
-    function hexToRgb(h) {
-      const c = h.replace('#','');
-      const bigint = parseInt(c, 16);
-      const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
-      return `${r},${g},${b}`;
-    }
-    function clearTrack() {
-      track = [];
-      trackLine.setLatLngs(track);
-    }
-
-    window.setFollowMe = function(on) { followMe = !!on; };
-    window.setMarkerColor = function(hex) { setMarkerColor(hex); };
-    window.clearTrack = function() { clearTrack(); };
-    window.resetTrack = function() { clearTrack(); };
 
     // Called by Flutter periodically
     window.updateLive = function (lat, lon, height, fixType, isReceiving) {
       const hasFix = (typeof lat === 'number') && (typeof lon === 'number');
-
-      // Update HUD
-      document.getElementById('lat').textContent = hasFix ? lat.toFixed(7) : '--------';
-      document.getElementById('lon').textContent = hasFix ? lon.toFixed(7) : '--------';
-      document.getElementById('hgt').textContent = (typeof height === 'number') ? height.toFixed(2) : '--------';
-      document.getElementById('fix').textContent = fixType || '--------';
-      document.getElementById('bt').textContent = isReceiving ? 'Receiving' : '--------';
 
       if (hasFix) {
         if (!liveMarker) {
           const el = document.createElement('div');
           el.className = 'pulse';
           el.style.background = markerColor;
-          el.style.boxShadow = `0 0 0 rgba(${hexToRgb(markerColor)}, 0.7)`;
+          const rgb = hexToRgb(markerColor) || '25, 118, 210';
+          el.style.boxShadow = `0 0 0 rgba(${rgb}, 0.7)`;
           liveMarker = L.marker([lat, lon], {
-            icon: L.divIcon({ className: '', html: el, iconSize: [18,18] })
+            icon: L.divIcon({ className: '', html: el, iconSize: [18, 18] })
           }).addTo(map);
         } else {
           liveMarker.setLatLng([lat, lon]);
         }
 
-        // Update track if moved
-        const last = track.length ? track[track.length - 1] : null;
-        if (!last || last[0] !== lat || last[1] !== lon) {
-          track.push([lat, lon]);
-          trackLine.setLatLngs(track);
+        if (targetLat !== null && targetLon !== null) {
+          updateTargetLine([lat, lon], [targetLat, targetLon]);
         }
 
         if (followMe) map.setView([lat, lon], Math.max(map.getZoom(), 17));
       }
     };
 
-    // Optional center helper
-    window.centerOn = function(lat, lon, zoom) {
-      map.setView([lat, lon], zoom || map.getZoom());
+    window.centerOn = function (lat, lon, zoom) {
+      map.setView([lat, lon], zoom || 20);
+    };
+
+    let targetLine = null;
+    let targetLat = null;
+    let targetLon = null;
+    let distanceLabel = null;
+
+    window.setTargetPoint = function (lat, lon) {
+      if (lat == null || lon == null) {
+        targetLat = null;
+        targetLon = null;
+        if (targetLine) {
+          map.removeLayer(targetLine);
+          targetLine = null;
+        }
+        if (distanceLabel) {
+          map.removeLayer(distanceLabel);
+          distanceLabel = null;
+        }
+        return;
+      }
+      targetLat = lat;
+      targetLon = lon;
+      if (liveMarker) {
+        updateTargetLine(liveMarker.getLatLng(), [targetLat, targetLon]);
+      }
+    };
+
+    function updateTargetLine(liveLatLng, targetLatLng) {
+      if (!targetLine) {
+        targetLine = L.polyline([liveLatLng, targetLatLng], {
+          color: 'red',
+          dashArray: '5, 5',
+          weight: 2
+        }).addTo(map);
+      } else {
+        targetLine.setLatLngs([liveLatLng, targetLatLng]);
+      }
+    }
+
+    window.setTargetDistance = function(distanceText) {
+      if (!targetLine || targetLat === null || !liveMarker) {
+        if (distanceLabel) {
+          map.removeLayer(distanceLabel);
+          distanceLabel = null;
+        }
+        return;
+      }
+      const liveLL = liveMarker.getLatLng();
+      const midLat = (liveLL.lat + targetLat) / 2;
+      const midLon = (liveLL.lng + targetLon) / 2;
+      const html = `<div style="background: rgba(255,255,255,0.8); border: 1px solid red; color: red; padding: 2px 4px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; transform: translate(-50%, -50%);">${distanceText}</div>`;
+      if (!distanceLabel) {
+        distanceLabel = L.marker([midLat, midLon], {
+          icon: L.divIcon({ className: '', html: html, iconSize: [0, 0] })
+        }).addTo(map);
+      } else {
+        distanceLabel.setLatLng([midLat, midLon]);
+        distanceLabel.setIcon(L.divIcon({ className: '', html: html, iconSize: [0, 0] }));
+      }
+    };
+
+    let stakeoutLine = null;
+    let stakeoutLat1 = null;
+    let stakeoutLon1 = null;
+    let stakeoutLat2 = null;
+    let stakeoutLon2 = null;
+
+    window.setTargetLine = function (lat1, lon1, lat2, lon2) {
+      if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+        stakeoutLat1 = null;
+        stakeoutLon1 = null;
+        stakeoutLat2 = null;
+        stakeoutLon2 = null;
+        if (stakeoutLine) {
+          map.removeLayer(stakeoutLine);
+          stakeoutLine = null;
+        }
+        if (distanceLabel) {
+          map.removeLayer(distanceLabel);
+          distanceLabel = null;
+        }
+        return;
+      }
+      stakeoutLat1 = lat1;
+      stakeoutLon1 = lon1;
+      stakeoutLat2 = lat2;
+      stakeoutLon2 = lon2;
+      
+      const p1 = [lat1, lon1];
+      const p2 = [lat2, lon2];
+      
+      // Calculate extended points to make it look like an infinite line or just a long segment
+      // A simple way is to just draw the segment, or extend it by a factor
+      const dLat = lat2 - lat1;
+      const dLon = lon2 - lon1;
+      const extP1 = [lat1 - dLat * 10, lon1 - dLon * 10];
+      const extP2 = [lat2 + dLat * 10, lon2 + dLon * 10];
+
+      if (!stakeoutLine) {
+        stakeoutLine = L.polyline([extP1, extP2], {
+          color: 'purple',
+          weight: 3
+        }).addTo(map);
+      } else {
+        stakeoutLine.setLatLngs([extP1, extP2]);
+      }
+    };
+
+    window.setTargetLineDistance = function(distanceText) {
+      if (!stakeoutLine || !liveMarker) {
+        if (distanceLabel) {
+          map.removeLayer(distanceLabel);
+          distanceLabel = null;
+        }
+        return;
+      }
+      const liveLL = liveMarker.getLatLng();
+      const html = `<div style="background: rgba(255,255,255,0.8); border: 1px solid purple; color: purple; padding: 2px 4px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; transform: translate(-50%, -50%);">${distanceText}</div>`;
+      if (!distanceLabel) {
+        distanceLabel = L.marker([liveLL.lat, liveLL.lng], {
+          icon: L.divIcon({ className: '', html: html, iconSize: [0, 0] })
+        }).addTo(map);
+      } else {
+        distanceLabel.setLatLng([liveLL.lat, liveLL.lng]);
+        distanceLabel.setIcon(L.divIcon({ className: '', html: html, iconSize: [0, 0] }));
+      }
+    };
+
+    // Add Point with Dot + Text Style
+    // Drawn points by id -> { key, layers }, so repeated pushes don't stack
+    // duplicate markers; a changed point (moved / renamed) is redrawn.
+    const drawnPoints = {};
+
+    window.addPoint = function (id, lat, lon, name, code) {
+      const key = lat + ',' + lon + ',' + name + ',' + (code || '');
+      const existing = drawnPoints[id];
+      if (existing) {
+        if (existing.key === key) return;
+        existing.layers.forEach(function (l) { map.removeLayer(l); });
+      }
+      const layers = [];
+      drawnPoints[id] = { key: key, layers: layers };
+
+      // 1. The Geometry (Blue Dot)
+      layers.push(L.circleMarker([lat, lon], {
+        radius: 3,        // Small radius for precise look (blue dot)
+        color: 'blue',
+        fillColor: 'blue',
+        fillOpacity: 1.0,
+        weight: 1
+      }).addTo(map));
+
+      // 2. The Text Label (Number \n Code)
+      // We use a permanent tooltip or a divIcon offset slightly
+      const labelHtml = `<div style="
+          line-height: 1.1; 
+          text-align: left; 
+          color: blue; 
+          font-weight: 500; 
+          font-family: sans-serif; 
+          font-size: 11px;
+          white-space: nowrap;
+          text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff; /* outline */
+        ">
+          <span style="font-size: 12px; font-weight: bold;">${name}</span><br>
+          <span style="font-size: 10px;">${code || ''}</span>
+        </div>`;
+
+      layers.push(L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: '', // No default class to avoid block box
+          html: labelHtml,
+          iconSize: [100, 30], // Big enough to fit text
+          iconAnchor: [-6, 12] // Offset: Right of the dot (which is at 0,0), centered vertically
+        }),
+        interactive: false // Let clicks pass through if needed, or set true for popup
+      }).addTo(map));
+
+      // 3. Invisible, finger-sized tap target -> point details in the app
+      if (window.PointTap) {
+        layers.push(L.circleMarker([lat, lon], {
+          radius: 14, stroke: false, fillOpacity: 0
+        }).on('click', function () {
+          window.PointTap.postMessage(String(id));
+        }).addTo(map));
+      }
+    };
+
+    // Removes drawn points whose id is not in [ids] (deleted points).
+    window.keepPoints = function (ids) {
+      const keep = new Set(ids.map(String));
+      Object.keys(drawnPoints).forEach(function (id) {
+        if (!keep.has(id)) {
+          drawnPoints[id].layers.forEach(function (l) { map.removeLayer(l); });
+          delete drawnPoints[id];
+        }
+      });
+    };
+
+    window.setFollowMe = function (enabled) {
+      followMe = enabled;
+    };
+
+    // Toggle Map Type
+    window.setMapType = function (type) {
+      if (type === 'plane') {
+        map.removeLayer(osmLayer);
+        document.getElementById('map').style.backgroundColor = '#f0f0f0';
+      } else {
+        map.addLayer(osmLayer);
+        document.getElementById('map').style.backgroundColor = '';
+      }
     };
   </script>
 </body>
+
 </html>

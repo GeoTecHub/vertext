@@ -21,9 +21,11 @@ class SpatialViewModel extends ChangeNotifier {
   }) async {
     loading = true; notifyListeners();
     try {
-      final geom = {"type":"Point","coordinates":[lon,lat]};
+      final geom = {"type":"Point","coordinates":[lon,lat,0.0],"srid":4326};
+      final props = <String, dynamic>{...?attrs};
+      props['point_no'] ??= await _repo.maxPoint(projectId) + 1;
       final created = await _repo.create(
-        projectId: projectId, layerId: layerId, geometry: geom, attributes: attrs ?? {});
+        projectId: projectId, layerId: layerId, geometry: geom, properties: props);
       features = [...features, created];
     } catch (e) { error = e.toString(); }
     loading = false; notifyListeners();

@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android local/build files
+/android/.gradle/
+/android/build/
+/android/local.properties
+/android/app/build/
+analysis_output.txt

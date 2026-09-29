@@ -14,6 +14,9 @@ import 'package:vertext_flutter/features/ntrip/ntrip_viewmodel.dart';
 import 'package:vertext_flutter/features/bluetooth/bt_viewmodel.dart';
 import 'package:vertext_flutter/features/gnss/gnss_live_viewmodel.dart';
 import 'package:vertext_flutter/features/plans/plan_management_viewmodel.dart';
+import 'package:vertext_flutter/features/projects/points_viewmodel.dart';
+import 'package:vertext_flutter/features/home/tolerance_viewmodel.dart';
+import 'package:vertext_flutter/features/instruments/instrument_viewmodel.dart';
 
 import 'package:vertext_flutter/app.dart';
 
@@ -22,6 +25,10 @@ Future<void> main() async {
 
   final session = SessionManager();
   final hasSession = await session.hasSession();
+
+  // Load instrument list before app starts so BtViewModel has the right device
+  final instrVM = InstrumentViewModel();
+  await instrVM.load();
 
   runApp(
     MultiProvider(
@@ -34,6 +41,11 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => SpatialViewModel()),
         ChangeNotifierProvider(create: (_) => NtripViewModel()),
         ChangeNotifierProvider(create: (_) => PlanManagementViewModel()),
+        ChangeNotifierProvider(create: (_) => PointsViewModel()),
+        ChangeNotifierProvider(create: (_) => ToleranceViewModel()),
+
+        // Instrument catalogue (must be before BtViewModel)
+        ChangeNotifierProvider<InstrumentViewModel>.value(value: instrVM),
 
         // Live GNSS + Bluetooth at the root (single instances app-wide)
         ChangeNotifierProvider(create: (_) => GnssLiveViewModel(), lazy: false),

@@ -5,15 +5,16 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-rootProject.layout.buildDirectory.value(newBuildDir)
+// Use user.dir (the JVM working directory, without symlink resolution) to avoid
+// Windows OneDrive junction points causing canonical-path mismatches.
+// user.dir = Vertextapp/android; one parentFile up = Vertextapp; /build = Vertextapp/build.
+val newBuildDirFile: File = File(System.getProperty("user.dir"))
+    .parentFile   // Vertextapp/
+    .resolve("build")
+rootProject.layout.buildDirectory.set(newBuildDirFile)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
+    project.layout.buildDirectory.set(File(newBuildDirFile, project.name))
 }
 subprojects {
     project.evaluationDependsOn(":app")
